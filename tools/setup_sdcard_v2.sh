@@ -1,41 +1,20 @@
 #!/bin/bash -e
-#
-# Copyright (c) 2009-2016 Robert Nelson <robertcnelson@gmail.com>
-# Copyright (c) 2010 Mario Di Francesco <mdf-code@digitalexile.it>
-#
-# Permission is hereby granted, free of charge, to any person obtaining a copy
-# of this software and associated documentation files (the "Software"), to deal
-# in the Software without restriction, including without limitation the rights
-# to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-# copies of the Software, and to permit persons to whom the Software is
-# furnished to do so, subject to the following conditions:
-#
-# The above copyright notice and this permission notice shall be included in
-# all copies or substantial portions of the Software.
-#
-# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-# IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-# FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-# AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-# LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-# OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
-# THE SOFTWARE.
-#
-# Latest can be found at:
-# https://github.com/RobertCNelson/omap-image-builder/blob/master/tools/setup_sdcard.sh
+# 
+# 
+# Author: Baozhu Zuo<zuobaozhu@gmail.com>
+# 
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License version 2 as
+# published by the Free Software Foundation.
+# 
+
 
 #REQUIREMENTS:
 #uEnv.txt bootscript support
 
-BOOT_LABEL="BOOT"
-
-unset USE_BETA_BOOTLOADER
-unset USE_LOCAL_BOOT
-unset LOCAL_BOOTLOADER
 
 #Defaults
 ROOTFS_TYPE=ext4
-ROOTFS_LABEL=rootfs
 
 DIR="$PWD"
 TEMPDIR=$(mktemp -d)
@@ -150,7 +129,6 @@ detect_software () {
 	if [ "x${test_sdfdisk}" = "xsfdisk" ] ; then
 		echo ""
 		echo "Detected known broken sfdisk:"
-		echo "See: https://github.com/RobertCNelson/netinstall/issues/20"
 		echo ""
 		exit
 	fi
@@ -174,233 +152,112 @@ detect_software () {
 	dl_quiet="${dl} --no-verbose"
 }
 
-local_bootloader () {
-	echo ""
-	echo "Using Locally Stored Device Bootloader"
-	echo "-----------------------------"
-	mkdir -p ${TEMPDIR}/dl/
 
-	if [ "${spl_name}" ] ; then
-		cp ${LOCAL_SPL} ${TEMPDIR}/dl/
-		SPL=${LOCAL_SPL##*/}
-		echo "SPL Bootloader: ${SPL}"
+
+usage () {
+	echo "usage: sudo $(basename $0) --mmc /dev/sdX --dtb <dev board>"
+	#tabed to match 
+		cat <<-__EOF__
+			-----------------------------
+			Required Options:
+			--mmc </dev/sdX> or --img <filename.img>
+
+			--dtb <dev board>
+
+			Additional Options:
+			        -h --help
+
+			--probe-mmc
+			        <list all partitions: sudo ./setup_sdcard.sh --probe-mmc>
+
+			__EOF__
+	exit
+}
+
+checkparm () {
+	if [ "$(echo $1|grep ^'\-')" ] ; then
+		echo "E: Need an argument"
+		usage
+	fi
+}
+
+
+check_dtb_board () {
+	error_invalid_dtb=1
+
+	#/hwpack/${dtb_board}.conf
+	unset leading_slash
+	leading_slash=$(echo ${dtb_board} | grep "/" || unset leading_slash)
+	if [ "${leading_slash}" ] ; then
+		dtb_board=$(echo "${leading_slash##*/}")
 	fi
 
-	if [ "${boot_name}" ] ; then
-		cp ${LOCAL_BOOTLOADER} ${TEMPDIR}/dl/
-		UBOOT=${LOCAL_BOOTLOADER##*/}
-		echo "UBOOT Bootloader: ${UBOOT}"
+	#${dtb_board}.conf
+	dtb_board=$(echo ${dtb_board} | awk -F ".conf" '{print $1}')
+	if [ -f "${DIR}"/hwpack/${dtb_board}.conf ] ; then
+		. "${DIR}"/hwpack/${dtb_board}.conf
+
+		unset error_invalid_dtb
+	else
+		cat <<-__EOF__
+			-----------------------------
+			ERROR: This script does not currently recognize the selected: [--dtb ${dtb_board}] option..
+			Please rerun $(basename $0) with a valid [--dtb <device>] option from the list below:
+			-----------------------------
+		__EOF__
+		cat "${DIR}"/hwpack/*.conf | grep supported
+		echo "-----------------------------"
+		exit
 	fi
 }
 
 dl_bootloader () {
 	echo ""
-	echo "Downloading Device's Bootloader"
-	echo "-----------------------------"
-	minimal_boot="1"
-
-	mkdir -p ${TEMPDIR}/dl/${DIST}
-	mkdir -p "${DIR}/dl/${DIST}"
-
-	${dl_quiet} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${conf_bl_listfile}
-
-	if [ ! -f ${TEMPDIR}/dl/${conf_bl_listfile} ] ; then
-		echo "error: can't connect to rcn-ee.net, retry in a few minutes..."
-		exit
-	fi
-
-	boot_version=$(cat ${TEMPDIR}/dl/${conf_bl_listfile} | grep "VERSION:" | awk -F":" '{print $2}')
-	if [ "x${boot_version}" != "x${minimal_boot}" ] ; then
-		echo "Error: This script is out of date and unsupported..."
-		echo "Please Visit: https://github.com/RobertCNelson to find updates..."
-		exit
-	fi
-
-	if [ "${USE_BETA_BOOTLOADER}" ] ; then
-		ABI="ABX2"
-	else
-		ABI="ABI2"
-	fi
-
-	if [ "${spl_name}" ] ; then
-		SPL=$(cat ${TEMPDIR}/dl/${conf_bl_listfile} | grep "${ABI}:${conf_board}:SPL" | awk '{print $2}')
-		${dl_quiet} --directory-prefix="${TEMPDIR}/dl/" ${SPL}
-		SPL=${SPL##*/}
-		echo "SPL Bootloader: ${SPL}"
-	else
-		unset SPL
-	fi
-
-	if [ "${boot_name}" ] ; then
-		UBOOT=$(cat ${TEMPDIR}/dl/${conf_bl_listfile} | grep "${ABI}:${conf_board}:BOOT" | awk '{print $2}')
-		${dl} --directory-prefix="${TEMPDIR}/dl/" ${UBOOT}
-		UBOOT=${UBOOT##*/}
-		echo "UBOOT Bootloader: ${UBOOT}"
-	else
-		unset UBOOT
-	fi
-
-	if [ "x${oem_blank_eeprom}" = "xenable" ] ; then
-		if [ "x${conf_board}" = "xam335x_evm" ] ; then
-			ABI="ABI2"
-			conf_board="am335x_boneblack"
-
-			if [ "${spl_name}" ] ; then
-				blank_SPL=$(cat ${TEMPDIR}/dl/${conf_bl_listfile} | grep "${ABI}:${conf_board}:SPL" | awk '{print $2}')
-				${dl_quiet} --directory-prefix="${TEMPDIR}/dl/" ${blank_SPL}
-				blank_SPL=${blank_SPL##*/}
-				echo "blank_SPL Bootloader: ${blank_SPL}"
-			else
-				unset blank_SPL
-			fi
-
-			if [ "${boot_name}" ] ; then
-				blank_UBOOT=$(cat ${TEMPDIR}/dl/${conf_bl_listfile} | grep "${ABI}:${conf_board}:BOOT" | awk '{print $2}')
-				${dl} --directory-prefix="${TEMPDIR}/dl/" ${blank_UBOOT}
-				blank_UBOOT=${blank_UBOOT##*/}
-				echo "blank_UBOOT Bootloader: ${blank_UBOOT}"
-			else
-				unset blank_UBOOT
-			fi
-		fi
-
-		if [ "x${conf_board}" = "xbeagle_x15" ] ; then
-			if [ ! "x${flasher_uboot}" = "x" ] ; then
-				ABI="ABI2"
-				conf_board="${flasher_uboot}"
-
-				if [ "${spl_name}" ] ; then
-					blank_SPL=$(cat ${TEMPDIR}/dl/${conf_bl_listfile} | grep "${ABI}:${conf_board}:SPL" | awk '{print $2}')
-					${dl_quiet} --directory-prefix="${TEMPDIR}/dl/" ${blank_SPL}
-					blank_SPL=${blank_SPL##*/}
-					echo "blank_SPL Bootloader: ${blank_SPL}"
-				else
-					unset blank_SPL
-				fi
-
-				if [ "${boot_name}" ] ; then
-					blank_UBOOT=$(cat ${TEMPDIR}/dl/${conf_bl_listfile} | grep "${ABI}:${conf_board}:BOOT" | awk '{print $2}')
-					${dl} --directory-prefix="${TEMPDIR}/dl/" ${blank_UBOOT}
-					blank_UBOOT=${blank_UBOOT##*/}
-					echo "blank_UBOOT Bootloader: ${blank_UBOOT}"
-				else
-					unset blank_UBOOT
-				fi
-			else
-				unset oem_blank_eeprom
-			fi
-		fi
-	fi
-}
-dl_v2_bootloader () {
-	echo ""
-	echo "Downloading ReSpeakerV2's Bootloader"
+	echo "Downloading ${dtb_board}'s Bootloader to ${TEMPDIR}/dl/"
 	echo "-----------------------------"	
 
-	mkdir -p ${TEMPDIR}/dl/${DIST}
-	mkdir -p "${DIR}/dl/${DIST}"
+	mkdir -p ${TEMPDIR}/dl/
+	cp ${DIR}/dl/*.img ${TEMPDIR}/dl/
 
-	${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${idbloader_name}
-	echo "blank_idbloader Bootloader: ${idbloader_name}"
+	# ${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${idbloader_name}
+	# echo "-----------------------------------------------------------------------------"	
+	# echo "blank_idbloader Bootloader: ${idbloader_name}"
 
-	${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${uboot_name}
-	echo "blank_uboot Bootloader: ${uboot_name}"
+	# ${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${uboot_name}
+	# echo "-----------------------------------------------------------------------------"
+	# echo "blank_uboot Bootloader: ${uboot_name}"
 
-
-	${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${atf_name}
-	echo "blank_trust Bootloader: ${atf_name}"
+	# ${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${trust_name}
+	# echo "-----------------------------------------------------------------------------"
+	# echo "blank_trust Bootloader: ${trust_name}"
 
 }
 
-generate_soc () {
-	echo "#!/bin/sh" > ${wfile}
-	echo "format=1.0" >> ${wfile}
-	echo "" >> ${wfile}
-	if [ ! "x${conf_bootloader_in_flash}" = "xenable" ] ; then
-		echo "board=${board}" >> ${wfile}
-		echo "" >> ${wfile}
-		echo "bootloader_location=${bootloader_location}" >> ${wfile}
-		echo "bootrom_gpt=${bootrom_gpt}" >> ${wfile}
-		echo "" >> ${wfile}
-		echo "dd_spl_uboot_count=${dd_spl_uboot_count}" >> ${wfile}
-		echo "dd_spl_uboot_seek=${dd_spl_uboot_seek}" >> ${wfile}
-		if [ "x${build_img_file}" = "xenable" ] ; then
-			echo "dd_spl_uboot_conf=notrunc" >> ${wfile}
-		else
-			echo "dd_spl_uboot_conf=${dd_spl_uboot_conf}" >> ${wfile}
-		fi
-		echo "dd_spl_uboot_bs=${dd_spl_uboot_bs}" >> ${wfile}
-		echo "dd_spl_uboot_backup=/opt/backup/uboot/${spl_uboot_name}" >> ${wfile}
-		echo "" >> ${wfile}
-		echo "dd_uboot_count=${dd_uboot_count}" >> ${wfile}
-		echo "dd_uboot_seek=${dd_uboot_seek}" >> ${wfile}
-		if [ "x${build_img_file}" = "xenable" ] ; then
-			echo "dd_uboot_conf=notrunc" >> ${wfile}
-		else
-			echo "dd_uboot_conf=${dd_uboot_conf}" >> ${wfile}
-		fi
-		echo "dd_uboot_bs=${dd_uboot_bs}" >> ${wfile}
-		echo "dd_uboot_backup=/opt/backup/uboot/${uboot_name}" >> ${wfile}
-	else
-		echo "uboot_CONFIG_CMD_BOOTZ=${uboot_CONFIG_CMD_BOOTZ}" >> ${wfile}
-		echo "uboot_CONFIG_SUPPORT_RAW_INITRD=${uboot_CONFIG_SUPPORT_RAW_INITRD}" >> ${wfile}
-		echo "uboot_CONFIG_CMD_FS_GENERIC=${uboot_CONFIG_CMD_FS_GENERIC}" >> ${wfile}
-		echo "zreladdr=${conf_zreladdr}" >> ${wfile}
-	fi
-	echo "" >> ${wfile}
-	echo "boot_fstype=${conf_boot_fstype}" >> ${wfile}
-	echo "conf_boot_startmb=${conf_boot_startmb}" >> ${wfile}
-	echo "conf_boot_endmb=${conf_boot_endmb}" >> ${wfile}
-	echo "sfdisk_fstype=${sfdisk_fstype}" >> ${wfile}
-	echo "" >> ${wfile}
-	echo "boot_label=${BOOT_LABEL}" >> ${wfile}
-	echo "rootfs_label=${ROOTFS_LABEL}" >> ${wfile}
-	echo "" >> ${wfile}
-	echo "#Kernel" >> ${wfile}
-	echo "dtb=${dtb}" >> ${wfile}
-	echo "serial_tty=${SERIAL}" >> ${wfile}
-	echo "usbnet_mem=${usbnet_mem}" >> ${wfile}
+populate_loaders(){
+	echo "Populating idbloader trust uboot Partition"
+	echo "-----------------------------------------------------------------------------"
 
-	echo "" >> ${wfile}
-}
+	echo "dd if=${TEMPDIR}/dl/${idbloader_name} of=${media} seek=${idbloader_start}"
+	dd if=${TEMPDIR}/dl/${idbloader_name} of=${media} seek=${idbloader_start}
+	echo "-----------------------------------------------------------------------------"
 
-drive_error_ro () {
-	echo "-----------------------------"
-	echo "Error: for some reason your SD card is not writable..."
-	echo "Check: is the write protect lever set the locked position?"
-	echo "Check: do you have another SD card reader?"
-	echo "-----------------------------"
-	echo "Script gave up..."
+	echo "dd if=${TEMPDIR}/dl/${uboot_name} of=${media} seek=${uboot_start}"
+	dd if=${TEMPDIR}/dl/${uboot_name} of=${media} seek=${uboot_start}
+	echo "-----------------------------------------------------------------------------"
 
-	exit
-}
+	echo "dd if=${TEMPDIR}/dl/${trust_name} of=${media} seek=${trust_start}"
+	dd if=${TEMPDIR}/dl/${trust_name} of=${media} seek=${trust_start}
+	echo "-----------------------------------------------------------------------------"
 
-unmount_all_drive_partitions () {
-	echo ""
-	echo "Unmounting Partitions"
-	echo "-----------------------------"
-
-	NUM_MOUNTS=$(mount | grep -v none | grep "${media}" | wc -l)
-
-##	for (i=1;i<=${NUM_MOUNTS};i++)
-	for ((i=1;i<=${NUM_MOUNTS};i++))
-	do
-		DRIVE=$(mount | grep -v none | grep "${media}" | tail -1 | awk '{print $1}')
-		umount ${DRIVE} >/dev/null 2>&1 || true
-	done
-
-	echo "Zeroing out Drive"
-	echo "-----------------------------"
-	dd if=/dev/zero of=${media} bs=1M count=100 || drive_error_ro
-	sync
-	dd if=${media} of=/dev/null bs=1M count=100
-	sync
+	echo "Finished populating idbloader trust  uboot Partition"
+	echo "-----------------------------------------------------------------------------"
 }
 
 sfdisk_partition_layout () {
+
 	sfdisk_options="--force --in-order --Linux --unit M"
 	sfdisk_boot_startmb="${conf_boot_startmb}"
-	sfdisk_boot_size_mb="${conf_boot_endmb}"
+	sfdisk_boot_size_mb="${conf_boot_sizemb}"
 	sfdisk_var_size_mb="${conf_var_startmb}"
 	if [ "x${option_ro_root}" = "xenable" ] ; then
 		sfdisk_var_startmb=$(($sfdisk_boot_startmb + $sfdisk_boot_size_mb))
@@ -408,6 +265,7 @@ sfdisk_partition_layout () {
 	else
 		sfdisk_rootfs_startmb=$(($sfdisk_boot_startmb + $sfdisk_boot_size_mb))
 	fi
+	echo "sfdisk_rootfs_startmb: ${sfdisk_rootfs_startmb}M"
 
 	test_sfdisk=$(LC_ALL=C sfdisk --help | grep -m 1 -e "--in-order" || true)
 	if [ "x${test_sfdisk}" = "x" ] ; then
@@ -420,147 +278,17 @@ sfdisk_partition_layout () {
 		sfdisk_rootfs_startmb="${sfdisk_rootfs_startmb}M"
 	fi
 
-	if [ "x${option_ro_root}" = "xenable" ] ; then
-		echo "sfdisk: [$(LC_ALL=C sfdisk --version)]"
-		echo "sfdisk: [${sfdisk_options} ${media}]"
-		echo "sfdisk: [${sfdisk_boot_startmb},${sfdisk_boot_size_mb},${sfdisk_fstype},*]"
-		echo "sfdisk: [${sfdisk_var_startmb},${sfdisk_var_size_mb},,-]"
-		echo "sfdisk: [${sfdisk_rootfs_startmb},,,-]"
 
-		LC_ALL=C sfdisk ${sfdisk_options} "${media}" <<-__EOF__
-			${sfdisk_boot_startmb},${sfdisk_boot_size_mb},${sfdisk_fstype},*
-			${sfdisk_var_startmb},${sfdisk_var_size_mb},,-
-			${sfdisk_rootfs_startmb},,,-
-		__EOF__
+	echo "sfdisk: [$(LC_ALL=C sfdisk --version)]"
+	echo "sfdisk: [${sfdisk_options} ${media}]"
+	echo "sfdisk: [${sfdisk_boot_startmb},${sfdisk_boot_size_mb},${sfdisk_fstype},*]"
+	echo "sfdisk: [${sfdisk_rootfs_startmb},,,-]"
 
-		media_rootfs_var_partition=3
-	else
-		echo "sfdisk: [$(LC_ALL=C sfdisk --version)]"
-		echo "sfdisk: [${sfdisk_options} ${media}]"
-		echo "sfdisk: [${sfdisk_boot_startmb},${sfdisk_boot_size_mb},${sfdisk_fstype},*]"
-		echo "sfdisk: [${sfdisk_rootfs_startmb},,,-]"
-
-		LC_ALL=C sfdisk ${sfdisk_options} "${media}" <<-__EOF__
-			${sfdisk_boot_startmb},${sfdisk_boot_size_mb},${sfdisk_fstype},*
-			${sfdisk_rootfs_startmb},,,-
-		__EOF__
-
-	fi
-
+	LC_ALL=C sfdisk ${sfdisk_options} "${media}" <<-__EOF__
+		${sfdisk_boot_startmb},${sfdisk_boot_size_mb},${sfdisk_fstype},*
+		${sfdisk_rootfs_startmb},,,-
+	__EOF__
 	sync
-}
-
-sfdisk_single_partition_layout () {
-	sfdisk_options="--force --in-order --Linux --unit M"
-	sfdisk_boot_startmb="${conf_boot_startmb}"
-	sfdisk_var_size_mb="${conf_var_startmb}"
-	if [ "x${option_ro_root}" = "xenable" ] ; then
-		sfdisk_rootfs_startmb=$(($sfdisk_boot_startmb + $sfdisk_var_size_mb))
-	fi
-
-	test_sfdisk=$(LC_ALL=C sfdisk --help | grep -m 1 -e "--in-order" || true)
-	if [ "x${test_sfdisk}" = "x" ] ; then
-		echo "log: sfdisk: 2.26.x or greater detected"
-		sfdisk_options="--force ${sfdisk_gpt}"
-		sfdisk_boot_startmb="${sfdisk_boot_startmb}M"
-		sfdisk_var_size_mb="${sfdisk_var_size_mb}M"
-		if [ "x${option_ro_root}" = "xenable" ] ; then
-			sfdisk_rootfs_startmb="${sfdisk_rootfs_startmb}M"
-		fi
-	fi
-
-	if [ "x${option_ro_root}" = "xenable" ] ; then
-		echo "sfdisk: [$(LC_ALL=C sfdisk --version)]"
-		echo "sfdisk: [${sfdisk_options} ${media}]"
-		echo "sfdisk: [${sfdisk_boot_startmb},${sfdisk_var_size_mb},${sfdisk_fstype},*]"
-		echo "sfdisk: [${sfdisk_rootfs_startmb},,,-]"
-
-		LC_ALL=C sfdisk ${sfdisk_options} "${media}" <<-__EOF__
-			${sfdisk_boot_startmb},${sfdisk_var_size_mb},${sfdisk_fstype},*
-			${sfdisk_rootfs_startmb},,,-
-		__EOF__
-
-		media_rootfs_var_partition=2
-	else
-		echo "sfdisk: [$(LC_ALL=C sfdisk --version)]"
-		echo "sfdisk: [${sfdisk_options} ${media}]"
-		echo "sfdisk: [${sfdisk_boot_startmb},,${sfdisk_fstype},*]"
-
-		LC_ALL=C sfdisk ${sfdisk_options} "${media}" <<-__EOF__
-			${sfdisk_boot_startmb},,${sfdisk_fstype},*
-		__EOF__
-
-	fi
-
-	sync
-}
-
-dd_uboot_boot () {
-	unset dd_uboot
-	if [ ! "x${dd_uboot_count}" = "x" ] ; then
-		dd_uboot="${dd_uboot}count=${dd_uboot_count} "
-	fi
-
-	if [ ! "x${dd_uboot_seek}" = "x" ] ; then
-		dd_uboot="${dd_uboot}seek=${dd_uboot_seek} "
-	fi
-
-	if [ "x${build_img_file}" = "xenable" ] ; then
-		dd_uboot="${dd_uboot}conv=notrunc "
-	else
-		if [ ! "x${dd_uboot_conf}" = "x" ] ; then
-			dd_uboot="${dd_uboot}conv=${dd_uboot_conf} "
-		fi
-	fi
-
-	if [ ! "x${dd_uboot_bs}" = "x" ] ; then
-		dd_uboot="${dd_uboot}bs=${dd_uboot_bs}"
-	fi
-
-	if [ "x${oem_blank_eeprom}" = "xenable" ] ; then
-		uboot_blob="${blank_UBOOT}"
-	else
-		uboot_blob="${UBOOT}"
-	fi
-
-	echo "${uboot_name}: dd if=${uboot_blob} of=${media} ${dd_uboot}"
-	echo "-----------------------------"
-	dd if=${TEMPDIR}/dl/${uboot_blob} of=${media} ${dd_uboot}
-	echo "-----------------------------"
-}
-
-dd_spl_uboot_boot () {
-	unset dd_spl_uboot
-	if [ ! "x${dd_spl_uboot_count}" = "x" ] ; then
-		dd_spl_uboot="${dd_spl_uboot}count=${dd_spl_uboot_count} "
-	fi
-
-	if [ ! "x${dd_spl_uboot_seek}" = "x" ] ; then
-		dd_spl_uboot="${dd_spl_uboot}seek=${dd_spl_uboot_seek} "
-	fi
-
-	if [ "x${build_img_file}" = "xenable" ] ; then
-			dd_spl_uboot="${dd_spl_uboot}conv=notrunc "
-	else
-		if [ ! "x${dd_spl_uboot_conf}" = "x" ] ; then
-			dd_spl_uboot="${dd_spl_uboot}conv=${dd_spl_uboot_conf} "
-		fi
-	fi
-
-	if [ ! "x${dd_spl_uboot_bs}" = "x" ] ; then
-		dd_spl_uboot="${dd_spl_uboot}bs=${dd_spl_uboot_bs}"
-	fi
-
-	if [ "x${oem_blank_eeprom}" = "xenable" ] ; then
-		spl_uboot_blob="${blank_SPL}"
-	else
-		spl_uboot_blob="${SPL}"
-	fi
-
-	echo "${spl_uboot_name}: dd if=${spl_uboot_blob} of=${media} ${dd_spl_uboot}"
-	echo "-----------------------------"
-	dd if=${TEMPDIR}/dl/${spl_uboot_blob} of=${media} ${dd_spl_uboot}
-	echo "-----------------------------"
 }
 
 format_partition_error () {
@@ -640,6 +368,7 @@ format_rootfs_partition () {
 	fi
 }
 
+
 create_partitions () {
 	unset bootloader_installed
 	unset sfdisk_gpt
@@ -662,52 +391,17 @@ create_partitions () {
 		fi
 	fi
 
-	echo ""
-	case "${bootloader_location}" in
-	fatfs_boot)
-		conf_boot_endmb=${conf_boot_endmb:-"12"}
-		echo "Using sfdisk to create partition layout"
-		echo "Version: `LC_ALL=C sfdisk --version`"
-		echo "-----------------------------"
-		sfdisk_partition_layout
-		;;
-	dd_uboot_boot)
-		echo "Using dd to place bootloader on drive"
-		echo "-----------------------------"
-		if [ "x${bootrom_gpt}" = "xenable" ] ; then
-			sfdisk_gpt="--label gpt"
-		fi
-		dd_uboot_boot
-		bootloader_installed=1
-		sfdisk_single_partition_layout
-		media_rootfs_partition=1
-		;;
-	dd_spl_uboot_boot)
-		echo "Using dd to place bootloader on drive"
-		echo "-----------------------------"
-		if [ "x${bootrom_gpt}" = "xenable" ] ; then
-			sfdisk_gpt="--label gpt"
-		fi
-		dd_spl_uboot_boot
-		dd_uboot_boot
-		bootloader_installed=1
-		if [ "x${enable_fat_partition}" = "xenable" ] ; then
-			conf_boot_endmb=${conf_boot_endmb:-"96"}
-			conf_boot_fstype=${conf_boot_fstype:-"fat"}
-			sfdisk_fstype=${sfdisk_fstype:-"0xE"}
-			sfdisk_partition_layout
-		else
-			sfdisk_single_partition_layout
-			media_rootfs_partition=1
-		fi
-		;;
-	*)
-		echo "Using sfdisk to create partition layout"
-		echo "Version: `LC_ALL=C sfdisk --version`"
-		echo "-----------------------------"
-		sfdisk_partition_layout
-		;;
-	esac
+
+	echo "Using dd to place bootloader on drive"
+	echo "-----------------------------"
+
+	conf_boot_endmb=${conf_boot_endmb:-"96"}
+	conf_boot_fstype=${conf_boot_fstype:-"fat"}
+	sfdisk_fstype=${sfdisk_fstype:-"0xE"}
+	BOOT_LABEL=${config_boot_label:-"BOOT"}
+	ROOTFS_LABEL=${config_rootfs_label:-"ROOTFS"}
+	sfdisk_partition_layout
+
 
 	echo "Partition Setup:"
 	echo "-----------------------------"
@@ -750,323 +444,8 @@ create_partitions () {
 		format_rootfs_partition
 	fi
 }
-create_v2_partitions () {
-	if [ "${conf_board}" = "respeaker_v2" ] ; then
-
-		reserved1_start=$(expr ${idbloader_start} + ${idbloader_size})
-		reserved2_start=$(expr ${reserved1_start} + ${reserved1_size})
-		uboot_start=$(expr ${reserved2_start} + ${reserved2_size})
-		atf_start=$(expr ${uboot_start} + ${uboot_size})
-		boot_start=$(expr ${atf_start} + ${atf_size})
-		rootfs_start=$(expr ${boot_start} + ${boot_size})
-
-		echo "parted -s ${media} mklabel gpt"
-		parted -s ${media} mklabel gpt
-		
-		echo "parted -s ${media} unit s mkpart loader1 ${idbloader_start} $(expr ${reserved1_start} - 1)"
-		parted -s ${media} unit s mkpart loader1 ${idbloader_start} $(expr ${reserved1_start} - 1)
-		
-		echo "parted -s ${media} unit s mkpart reserved1 ${reserved1_start} $(expr ${reserved2_start} - 1)"
-		parted -s ${media} unit s mkpart reserved1 ${reserved1_start} $(expr ${reserved2_start} - 1)
-
-		echo "parted -s ${media} unit s mkpart reserved2 ${reserved2_start} $(expr ${uboot_start} - 1)"
-		parted -s ${media} unit s mkpart reserved2 ${reserved2_start} $(expr ${uboot_start} - 1)
-
-		echo "parted -s ${media} unit s mkpart loader2 ${uboot_start} $(expr ${atf_start} - 1)"
-		parted -s ${media} unit s mkpart loader2 ${uboot_start} $(expr ${atf_start} - 1)
-
-		echo "parted -s ${media} unit s mkpart atf ${atf_start} $(expr ${boot_start} - 1)"
-		parted -s ${media} unit s mkpart atf ${atf_start} $(expr ${boot_start} - 1)
-
-		echo "parted -s ${media} unit s mkpart ${BOOT_LABEL} ${boot_start} $(expr ${rootfs_start} - 1)"
-		parted -s ${media} unit s mkpart ${BOOT_LABEL} ${boot_start} $(expr ${rootfs_start} - 1)
-
-		echo "parted -s ${media} set 6 boot on"
-		parted -s ${media} set 6 boot on
-
-		echo "parted -s ${media} unit s mkpart root ${rootfs_start} 100%"
-		parted -s ${media} unit s mkpart root ${rootfs_start} 100%
-	fi
-
-	if [ "x${build_img_file}" = "xenable" ] ; then
-		media_loop=$(losetup -f || true)
-		if [ ! "${media_loop}" ] ; then
-			echo "losetup -f failed"
-			echo "Unmount some via: [sudo losetup -a]"
-			echo "-----------------------------"
-			losetup -a
-			echo "sudo kpartx -d /dev/loopX ; sudo losetup -d /dev/loopX"
-			echo "-----------------------------"
-			exit
-		fi
-
-		losetup ${media_loop} "${media}"
-		kpartx -av ${media_loop}
-		sleep 1
-		sync
-		test_loop=$(echo ${media_loop} | awk -F'/' '{print $3}')
-		if [ -e /dev/mapper/${test_loop}p${media_boot_partition} ] && [ -e /dev/mapper/${test_loop}p${media_rootfs_partition} ] ; then
-			media_prefix="/dev/mapper/${test_loop}p"
-		else
-			ls -lh /dev/mapper/
-			echo "Error: not sure what to do (new feature)."
-			exit
-		fi
-	else
-		partprobe ${media}
-	fi
-
-	if [ "x${media_boot_partition}" = "x${media_rootfs_partition}" ] ; then
-		mount_partition_format="${ROOTFS_TYPE}"
-		format_rootfs_partition
-	else
-		conf_boot_fstype="fat"
-		format_boot_partition
-		format_rootfs_partition
-	fi
-
-}
-populate_loaders(){
-	echo "Populating idbloader atf  uboot Partition"
-	echo "-----------------------------"
-	partprobe ${media}
-	echo "dd if=${TEMPDIR}/dl/${idbloader_name} of=${media_prefix}${media_idbloader_partition} conv=notrunc"
-	dd if=${TEMPDIR}/dl/${idbloader_name} of=${media_prefix}${media_idbloader_partition} conv=notrunc
-
-	echo "dd if=${TEMPDIR}/dl/${atf_name} of=${media_prefix}${media_atf_partition} conv=notrunc"
-	dd if=${TEMPDIR}/dl/${atf_name} of=${media_prefix}${media_atf_partition} conv=notrunc
-
-	echo "dd if=${TEMPDIR}/dl/${uboot_name} of=${media_prefix}${media_uboot_partition} conv=notrunc"
-	dd if=${TEMPDIR}/dl/${uboot_name} of=${media_prefix}${media_uboot_partition} conv=notrunc
-
-	echo "Finished populating idbloader atf  uboot Partition"
-	echo "-----------------------------"
-}
-
-populate_boot () {
-	echo "Populating Boot Partition"
-	echo "-----------------------------"
-
-	if [ ! -d ${TEMPDIR}/disk ] ; then
-		mkdir -p ${TEMPDIR}/disk
-	fi
-
-
-
-	partprobe ${media}
-	if ! mount -t ${mount_partition_format} ${media_prefix}${media_boot_partition} ${TEMPDIR}/disk/; then
-
-		echo "-----------------------------"
-		echo "BUG: [${media_prefix}${media_boot_partition}] was not available so trying to mount again in 5 seconds..."
-		partprobe ${media}
-		sync
-		sleep 5
-		echo "-----------------------------"
-
-		if ! mount -t ${mount_partition_format} ${media_prefix}${media_boot_partition} ${TEMPDIR}/disk; then
-			echo "-----------------------------"
-			echo "Unable to mount ${media_prefix}${media_boot_partition} at ${TEMPDIR}/disk to complete populating Boot Partition"
-			echo "Please retry running the script, sometimes rebooting your system helps."
-			echo "-----------------------------"
-			exit
-		fi
-	fi
-
-	lsblk | grep -v sr0
-	echo "-----------------------------"
-
-
-	if [ "x${conf_board}" = "xrespeaker_v2" ] ; then
-		mv ${TEMPDIR}/boot/*  ${TEMPDIR}/disk/
-		ls -lh ${TEMPDIR}/disk/ 
-		umount ${TEMPDIR}/disk || true
-		if [ "x${build_img_file}" = "xenable" ] ; then
-			sync
-			kpartx -d ${media_loop} || true
-			losetup -d ${media_loop} || true
-		fi		
-		echo "Finished populating Boot Partition"
-		echo "-----------------------------"
-		exit
-	fi
-	if [ "${spl_name}" ] ; then
-		if [ -f ${TEMPDIR}/dl/${SPL} ] ; then
-			if [ ! "${bootloader_installed}" ] ; then
-				cp -v ${TEMPDIR}/dl/${SPL} ${TEMPDIR}/disk/${spl_name}
-				echo "-----------------------------"
-			fi
-		fi
-	fi
-
-
-	if [ "${boot_name}" ] ; then
-		if [ -f ${TEMPDIR}/dl/${UBOOT} ] ; then
-			if [ ! "${bootloader_installed}" ] ; then
-				cp -v ${TEMPDIR}/dl/${UBOOT} ${TEMPDIR}/disk/${boot_name}
-				echo "-----------------------------"
-			fi
-		fi
-	fi
-
-	if [ "x${distro_defaults}" = "xenable" ] ; then
-		${dl_quiet} --directory-prefix="${TEMPDIR}/dl/" https://raw.githubusercontent.com/RobertCNelson/netinstall/master/lib/distro_defaults.scr
-		cp -v ${TEMPDIR}/dl/distro_defaults.scr ${TEMPDIR}/disk/boot.scr
-	fi
-
-	if [ "x${conf_board}" = "xam335x_boneblack" ] || [ "x${conf_board}" = "xam335x_evm" ] ; then
-
-		if [ ! "x${bbb_old_bootloader_in_emmc}" = "xenable" ] ; then
-			wfile="${TEMPDIR}/disk/bbb-uEnv.txt"
-			echo "##Rename as: uEnv.txt to override old bootloader in eMMC" > ${wfile}
-			echo "##These are needed to be compliant with Angstrom's 2013.06.20 u-boot." >> ${wfile}
-		else
-			wfile="${TEMPDIR}/disk/uEnv.txt"
-			echo "##These are needed to be compliant with Angstrom's 2013.06.20 u-boot." > ${wfile}
-		fi
-
-		echo "" >> ${wfile}
-		echo "loadaddr=0x82000000" >> ${wfile}
-		echo "fdtaddr=0x88000000" >> ${wfile}
-		echo "rdaddr=0x88080000" >> ${wfile}
-		echo "" >> ${wfile}
-		echo "initrd_high=0xffffffff" >> ${wfile}
-		echo "fdt_high=0xffffffff" >> ${wfile}
-		echo "" >> ${wfile}
-		echo "##These are needed to be compliant with Debian 2014-05-14 u-boot." >> ${wfile}
-		echo "" >> ${wfile}
-		echo "loadximage=echo debug: [/boot/vmlinuz-\${uname_r}] ... ; load mmc 0:${media_rootfs_partition} \${loadaddr} /boot/vmlinuz-\${uname_r}" >> ${wfile}
-		echo "loadxfdt=echo debug: [/boot/dtbs/\${uname_r}/\${fdtfile}] ... ;load mmc 0:${media_rootfs_partition} \${fdtaddr} /boot/dtbs/\${uname_r}/\${fdtfile}" >> ${wfile}
-		echo "loadxrd=echo debug: [/boot/initrd.img-\${uname_r}] ... ; load mmc 0:${media_rootfs_partition} \${rdaddr} /boot/initrd.img-\${uname_r}; setenv rdsize \${filesize}" >> ${wfile}
-		echo "loaduEnvtxt=load mmc 0:${media_rootfs_partition} \${loadaddr} /boot/uEnv.txt ; env import -t \${loadaddr} \${filesize};" >> ${wfile}
-		echo "check_dtb=if test -n \${dtb}; then setenv fdtfile \${dtb};fi;" >> ${wfile}
-		echo "check_uboot_overlays=if test -n \${enable_uboot_overlays}; then setenv enable_uboot_overlays ;fi;" >> ${wfile}
-		echo "loadall=run loaduEnvtxt; run check_dtb; run check_uboot_overlays; run loadximage; run loadxrd; run loadxfdt;" >> ${wfile}
-		echo "" >> ${wfile}
-		echo "mmcargs=setenv bootargs console=tty0 console=\${console} \${optargs} \${cape_disable} \${cape_enable} root=/dev/mmcblk0p${media_rootfs_partition} rootfstype=\${mmcrootfstype} \${cmdline}" >> ${wfile}
-		echo "" >> ${wfile}
-		echo "uenvcmd=run loadall; run mmcargs; echo debug: [\${bootargs}] ... ; echo debug: [bootz \${loadaddr} \${rdaddr}:\${rdsize} \${fdtaddr}] ... ; bootz \${loadaddr} \${rdaddr}:\${rdsize} \${fdtaddr};" >> ${wfile}
-		echo "" >> ${wfile}
-	fi
-
-	if [ "x${conf_board}" = "xam335x_boneblack" ] || [ "x${conf_board}" = "xam335x_evm" ] || [ "x${conf_board}" = "xam335x_blank_bbbw" ] ; then
-
-		wfile="${TEMPDIR}/disk/nfs-uEnv.txt"
-		echo "##Rename as: uEnv.txt to boot via nfs" > ${wfile}
-		echo "" >> ${wfile}
-		echo "##https://www.kernel.org/doc/Documentation/filesystems/nfs/nfsroot.txt" >> ${wfile}
-		echo "" >> ${wfile}
-		echo "##SERVER: sudo apt-get install tftpd-hpa" >> ${wfile}
-		echo "##SERVER:" >> ${wfile}
-		echo "##SERVER: zImage boot:" >> ${wfile}
-		echo "##SERVER: TFTP_DIRECTORY defined in /etc/default/tftpd-hpa" >> ${wfile}
-		echo "##SERVER: zImage/*.dtb need to be located here:" >> ${wfile}
-		echo "##SERVER: TFTP_DIRECTORY/zImage" >> ${wfile}
-		echo "##SERVER: TFTP_DIRECTORY/dtbs/*.dtb" >> ${wfile}
-		echo "##SERVER:" >> ${wfile}
-		echo "##SERVER: uname_r boot:" >> ${wfile}
-		echo "##SERVER: TFTP_DIRECTORY defined in /etc/default/tftpd-hpa" >> ${wfile}
-		echo "##SERVER: Change TFTP_DIRECTORY to /NFSEXPORT/boot" >> ${wfile}
-		echo "##SERVER: TFTP_DIRECTORY/vmlinuz-\${uname_r}" >> ${wfile}
-		echo "##SERVER: TFTP_DIRECTORY/dtbs/\${uname_r}/*.dtb" >> ${wfile}
-		echo "" >> ${wfile}
-		echo "##client_ip needs to be set for u-boot to try booting via nfs" >> ${wfile}
-		echo "" >> ${wfile}
-		echo "client_ip=192.168.1.101" >> ${wfile}
-		echo "" >> ${wfile}
-		echo "#u-boot defaults: uncomment and override where needed" >> ${wfile}
-		echo "" >> ${wfile}
-		echo "#server_ip=192.168.1.100" >> ${wfile}
-		echo "#gw_ip=192.168.1.1" >> ${wfile}
-		echo "#netmask=255.255.255.0" >> ${wfile}
-		echo "#hostname=" >> ${wfile}
-		echo "#device=eth0" >> ${wfile}
-		echo "#autoconf=off" >> ${wfile}
-		echo "#root_dir=/home/userid/targetNFS" >> ${wfile}
-		echo "#nfs_options=,vers=3" >> ${wfile}
-		echo "#nfsrootfstype=ext4 rootwait fixrtc" >> ${wfile}
-		echo "" >> ${wfile}
-		echo "##use uname_r= only if TFTP SERVER is setup for uname_r boot:" >> ${wfile}
-		echo "#uname_r=" >> ${wfile}
-		echo "" >> ${wfile}
-
-	fi
-
-	if [ -f "${DIR}/ID.txt" ] ; then
-		cp -v "${DIR}/ID.txt" ${TEMPDIR}/disk/ID.txt
-	fi
-
-	if [ ${has_uenvtxt} ] ; then
-		if [ ! "x${bbb_old_bootloader_in_emmc}" = "xenable" ] ; then
-			cp -v "${DIR}/uEnv.txt" ${TEMPDIR}/disk/uEnv.txt
-			echo "-----------------------------"
-		fi
-	fi
-
-	cd ${TEMPDIR}/disk
-	sync
-	cd "${DIR}"/
-
-	echo "Debug: Contents of Boot Partition"
-	echo "-----------------------------"
-	ls -lh ${TEMPDIR}/disk/
-	du -sh ${TEMPDIR}/disk/
-	echo "-----------------------------"
-
-	sync
-	sync
-
-
-	umount ${TEMPDIR}/disk || true
-	echo "Finished populating Boot Partition"
-	echo "-----------------------------"
-}
 
 kernel_detection () {
-	unset has_multi_armv7_kernel
-	unset check
-	check=$(ls "${dir_check}" | grep vmlinuz- | grep armv7 | grep -v lpae | head -n 1)
-	if [ "x${check}" != "x" ] ; then
-		armv7_kernel=$(ls "${dir_check}" | grep vmlinuz- | grep armv7 | grep -v lpae | head -n 1 | awk -F'vmlinuz-' '{print $2}')
-		echo "Debug: image has: v${armv7_kernel}"
-		has_multi_armv7_kernel="enable"
-	fi
-
-	unset has_multi_armv7_lpae_kernel
-	unset check
-	check=$(ls "${dir_check}" | grep vmlinuz- | grep armv7 | grep lpae | head -n 1)
-	if [ "x${check}" != "x" ] ; then
-		armv7_lpae_kernel=$(ls "${dir_check}" | grep vmlinuz- | grep armv7 | grep lpae | head -n 1 | awk -F'vmlinuz-' '{print $2}')
-		echo "Debug: image has: v${armv7_lpae_kernel}"
-		has_multi_armv7_lpae_kernel="enable"
-	fi
-
-	unset has_bone_kernel
-	unset check
-	check=$(ls "${dir_check}" | grep vmlinuz- | grep bone | head -n 1)
-	if [ "x${check}" != "x" ] ; then
-		bone_dt_kernel=$(ls "${dir_check}" | grep vmlinuz- | grep bone | head -n 1 | awk -F'vmlinuz-' '{print $2}')
-		echo "Debug: image has: v${bone_dt_kernel}"
-		has_bone_kernel="enable"
-	fi
-
-	unset has_ti_kernel
-	unset check
-	check=$(ls "${dir_check}" | grep vmlinuz- | grep ti | head -n 1)
-	if [ "x${check}" != "x" ] ; then
-		ti_dt_kernel=$(ls "${dir_check}" | grep vmlinuz- | grep ti | head -n 1 | awk -F'vmlinuz-' '{print $2}')
-		echo "Debug: image has: v${ti_dt_kernel}"
-		has_ti_kernel="enable"
-	fi
-
-	unset has_xenomai_kernel
-	unset check
-	check=$(ls "${dir_check}" | grep vmlinuz- | grep xenomai | head -n 1)
-	if [ "x${check}" != "x" ] ; then
-		xenomai_dt_kernel=$(ls "${dir_check}" | grep vmlinuz- | grep xenomai | head -n 1 | awk -F'vmlinuz-' '{print $2}')
-		echo "Debug: image has: v${xenomai_dt_kernel}"
-		has_xenomai_kernel="enable"
-	fi
-
 	unset has_respeaker_kernel
 	unset check
 	check=$(ls "${dir_check}" | grep vmlinuz- | grep respeaker | head -n 1)
@@ -1079,49 +458,6 @@ kernel_detection () {
 
 kernel_select () {
 	unset select_kernel
-	if [ "x${conf_kernel}" = "xarmv7" ] || [ "x${conf_kernel}" = "x" ] ; then
-		if [ "x${has_multi_armv7_kernel}" = "xenable" ] ; then
-			select_kernel="${armv7_kernel}"
-		fi
-	fi
-
-	if [ "x${conf_kernel}" = "xarmv7_lpae" ] ; then
-		if [ "x${has_multi_armv7_lpae_kernel}" = "xenable" ] ; then
-			select_kernel="${armv7_lpae_kernel}"
-		else
-			if [ "x${has_multi_armv7_kernel}" = "xenable" ] ; then
-				select_kernel="${armv7_kernel}"
-			fi
-		fi
-	fi
-
-	if [ "x${conf_kernel}" = "xbone" ] ; then
-		if [ "x${has_ti_kernel}" = "xenable" ] ; then
-			select_kernel="${ti_dt_kernel}"
-		else
-			if [ "x${has_bone_kernel}" = "xenable" ] ; then
-				select_kernel="${bone_dt_kernel}"
-			else
-				if [ "x${has_multi_armv7_kernel}" = "xenable" ] ; then
-					select_kernel="${armv7_kernel}"
-				else
-					if [ "x${has_xenomai_kernel}" = "xenable" ] ; then
-						select_kernel="${xenomai_dt_kernel}"
-					fi
-				fi
-			fi
-		fi
-	fi
-
-	if [ "x${conf_kernel}" = "xti" ] ; then
-		if [ "x${has_ti_kernel}" = "xenable" ] ; then
-			select_kernel="${ti_dt_kernel}"
-		else
-			if [ "x${has_multi_armv7_kernel}" = "xenable" ] ; then
-				select_kernel="${armv7_kernel}"
-			fi
-		fi
-	fi
 
 	if [ "x${conf_kernel}" = "xrespeaker" ] ; then
 		if [ "x${has_respeaker_kernel}" = "xenable" ] ; then
@@ -1132,10 +468,11 @@ kernel_select () {
 	if [ "${select_kernel}" ] ; then
 		echo "Debug: using: v${select_kernel}"
 	else
-		echo "Error: [conf_kernel] not defined [armv7_lpae,armv7,bone,ti]..."
+		echo "Error: [conf_kernel] not defined [armv7_lpae,armv7,respeaker]..."
 		exit
 	fi
 }
+
 
 populate_rootfs () {
 	echo "Populating rootfs Partition"
@@ -1163,32 +500,6 @@ populate_rootfs () {
 			echo "-----------------------------"
 			exit
 		fi
-	fi
-
-	if [ "x${option_ro_root}" = "xenable" ] ; then
-
-		if [ ! -d ${TEMPDIR}/disk/var ] ; then
-			mkdir -p ${TEMPDIR}/disk/var
-		fi
-
-		if ! mount -t ${ROOTFS_TYPE} ${media_prefix}${media_rootfs_var_partition} ${TEMPDIR}/disk/var; then
-
-			echo "-----------------------------"
-			echo "BUG: [${media_prefix}${media_rootfs_var_partition}] was not available so trying to mount again in 5 seconds..."
-			partprobe ${media}
-			sync
-			sleep 5
-			echo "-----------------------------"
-
-			if ! mount -t ${ROOTFS_TYPE} ${media_prefix}${media_rootfs_var_partition} ${TEMPDIR}/disk/var; then
-				echo "-----------------------------"
-				echo "Unable to mount ${media_prefix}${media_rootfs_var_partition} at ${TEMPDIR}/disk/var to complete populating rootfs Partition"
-				echo "Please retry running the script, sometimes rebooting your system helps."
-				echo "-----------------------------"
-				exit
-			fi
-		fi
-
 	fi
 
 	lsblk | grep -v sr0
@@ -1227,50 +538,11 @@ populate_rootfs () {
 			/usr/bin/stat ${TEMPDIR}/disk/
 		fi
 		echo "-----------------------------"
-
-		if [ ! "x${oem_flasher_img}" = "x" ] ; then
-			if [ ! -d "${TEMPDIR}/disk/opt/emmc/" ] ; then
-				mkdir -p "${TEMPDIR}/disk/opt/emmc/"
-			fi
-			cp -v "${oem_flasher_img}" "${TEMPDIR}/disk/opt/emmc/"
-			sync
-			if [ ! "x${oem_flasher_bmap}" = "x" ] ; then
-				cp -v "${oem_flasher_bmap}" "${TEMPDIR}/disk/opt/emmc/"
-				sync
-			fi
-			if [ ! "x${oem_flasher_eeprom}" = "x" ] ; then
-				cp -v "${oem_flasher_eeprom}" "${TEMPDIR}/disk/opt/emmc/"
-				sync
-			fi
-			if [ ! "x${oem_flasher_job}" = "x" ] ; then
-				cp -v "${oem_flasher_job}" "${TEMPDIR}/disk/opt/emmc/job.txt"
-				sync
-				if [ ! "x${oem_flasher_eeprom}" = "x" ] ; then
-					echo "conf_eeprom_file=${oem_flasher_eeprom}" >> "${TEMPDIR}/disk/opt/emmc/job.txt"
-					if [ ! "x${conf_eeprom_compare}" = "x" ] ; then
-						echo "conf_eeprom_compare=${conf_eeprom_compare}" >> "${TEMPDIR}/disk/opt/emmc/job.txt"
-					else
-						echo "conf_eeprom_compare=335" >> "${TEMPDIR}/disk/opt/emmc/job.txt"
-					fi
-				fi
-			fi
-			echo "-----------------------------"
-			cat "${TEMPDIR}/disk/opt/emmc/job.txt"
-			echo "-----------------------------"
-			echo "Disk Size, with *.img"
-			du -sh ${TEMPDIR}/disk/
-		fi
-
-		echo "-----------------------------"
 	fi
 
 	dir_check="${TEMPDIR}/disk/boot/"
 	kernel_detection
 	kernel_select
-
-	if [ ! "x${uboot_eeprom}" = "x" ] ; then
-		echo "board_eeprom_header=${uboot_eeprom}" > "${TEMPDIR}/disk/boot/.eeprom.txt"
-	fi
 
 	wfile="${TEMPDIR}/disk/boot/uEnv.txt"
 	#echo "#Docs: http://elinux.org/Beagleboard:U-boot_partitioning_layout_2.0" > ${wfile}
@@ -1843,138 +1115,6 @@ populate_rootfs () {
 	fi
 }
 
-check_mmc () {
-	FDISK=$(LC_ALL=C fdisk -l 2>/dev/null | grep "Disk ${media}:" | awk '{print $2}')
-
-	if [ "x${FDISK}" = "x${media}:" ] ; then
-		echo ""
-		echo "I see..."
-		echo ""
-		echo "lsblk:"
-		lsblk | grep -v sr0
-		echo ""
-		unset response
-		echo -n "Are you 100% sure, on selecting [${media}] (y/n)? "
-		read response
-		if [ "x${response}" != "xy" ] ; then
-			exit
-		fi
-		echo ""
-	else
-		echo ""
-		echo "Are you sure? I Don't see [${media}], here is what I do see..."
-		echo ""
-		echo "lsblk:"
-		lsblk | grep -v sr0
-		echo ""
-		exit
-	fi
-}
-
-process_dtb_conf () {
-	if [ "${conf_warning}" ] ; then
-		show_board_warning
-	fi
-
-	echo "-----------------------------"
-
-	#defaults, if not set...
-	case "${bootloader_location}" in
-	fatfs_boot)
-		conf_boot_startmb=${conf_boot_startmb:-"1"}
-		;;
-	dd_uboot_boot|dd_spl_uboot_boot)
-		conf_boot_startmb=${conf_boot_startmb:-"4"}
-		;;
-	*)
-		conf_boot_startmb=${conf_boot_startmb:-"4"}
-		;;
-	esac
-
-	#https://wiki.linaro.org/WorkingGroups/KernelArchived/Projects/FlashCardSurvey
-	conf_root_device=${conf_root_device:-"/dev/mmcblk0"}
-
-	#error checking...
-	if [ ! "${conf_boot_fstype}" ] ; then
-		conf_boot_fstype="${ROOTFS_TYPE}"
-	fi
-
-	case "${conf_boot_fstype}" in
-	fat)
-		sfdisk_fstype="0xE"
-		;;
-	ext2|ext3|ext4)
-		sfdisk_fstype="L"
-		;;
-	*)
-		echo "Error: [conf_boot_fstype] not recognized, stopping..."
-		exit
-		;;
-	esac
-}
-
-check_dtb_board () {
-	error_invalid_dtb=1
-
-	#/hwpack/${dtb_board}.conf
-	unset leading_slash
-	leading_slash=$(echo ${dtb_board} | grep "/" || unset leading_slash)
-	if [ "${leading_slash}" ] ; then
-		dtb_board=$(echo "${leading_slash##*/}")
-	fi
-
-	#${dtb_board}.conf
-	dtb_board=$(echo ${dtb_board} | awk -F ".conf" '{print $1}')
-	if [ -f "${DIR}"/hwpack/${dtb_board}.conf ] ; then
-		. "${DIR}"/hwpack/${dtb_board}.conf
-
-		boot=${boot_image}
-		unset error_invalid_dtb
-		process_dtb_conf
-	else
-		cat <<-__EOF__
-			-----------------------------
-			ERROR: This script does not currently recognize the selected: [--dtb ${dtb_board}] option..
-			Please rerun $(basename $0) with a valid [--dtb <device>] option from the list below:
-			-----------------------------
-		__EOF__
-		cat "${DIR}"/hwpack/*.conf | grep supported
-		echo "-----------------------------"
-		exit
-	fi
-}
-
-usage () {
-	echo "usage: sudo $(basename $0) --mmc /dev/sdX --dtb <dev board>"
-	#tabed to match 
-		cat <<-__EOF__
-			-----------------------------
-			Bugs email: "bugs at rcn-ee.com"
-
-			Required Options:
-			--mmc </dev/sdX> or --img <filename.img>
-
-			--dtb <dev board>
-
-			Additional Options:
-			        -h --help
-
-			--probe-mmc
-			        <list all partitions: sudo ./setup_sdcard.sh --probe-mmc>
-
-			__EOF__
-	exit
-}
-
-checkparm () {
-	if [ "$(echo $1|grep ^'\-')" ] ; then
-		echo "E: Need an argument"
-		usage
-	fi
-}
-
-error_invalid_dtb=1
-
 # parse commandline options
 while [ ! -z "$1" ] ; do
 	case $1 in
@@ -1985,19 +1125,6 @@ while [ ! -z "$1" ] ; do
 	--hostname)
 		checkparm $2
 		new_hostname="$2"
-		;;
-	--probe-mmc)
-		media="/dev/idontknow"
-		check_root
-		check_mmc
-		;;
-	--mmc)
-		checkparm $2
-		media="$2"
-		media_prefix="${media}"
-		echo ${media} | grep mmcblk >/dev/null && media_prefix="${media}p"
-		check_root
-		check_mmc
 		;;
 	--img|--img-[12468]gb)
 		checkparm $2
@@ -2025,208 +1152,55 @@ while [ ! -z "$1" ] ; do
 		### seek=$((1024 * (gsize * 850)))
 		## x 850 (85%) #1GB = 850 #2GB = 1700 #4GB = 3400
 		#
+		echo "dd if=/dev/zero of="${media}" bs=1024 count=0 seek=$((1024 * (gsize * 850)))"
+		echo "_____________________________________________________________________________"
 		dd if=/dev/zero of="${media}" bs=1024 count=0 seek=$((1024 * (gsize * 850)))
 		;;
 	--dtb)
 		checkparm $2
+		;;
+	--board)
+		checkparm $2
 		dtb_board="$2"
 		dir_check="${DIR}/"
-		kernel_detection
 		check_dtb_board
-		;;
-	--ro)
-		conf_var_startmb="2048"
-		option_ro_root="enable"
-		;;
-	--rootfs)
-		checkparm $2
-		ROOTFS_TYPE="$2"
-		;;
-	--boot_label)
-		checkparm $2
-		BOOT_LABEL="$2"
-		;;
-	--rootfs_label)
-		checkparm $2
-		ROOTFS_LABEL="$2"
-		;;
-	--spl)
-		checkparm $2
-		LOCAL_SPL="$2"
-		USE_LOCAL_BOOT=1
-		;;
-	--bootloader)
-		checkparm $2
-		LOCAL_BOOTLOADER="$2"
-		USE_LOCAL_BOOT=1
-		;;
-	--use-beta-bootloader)
-		USE_BETA_BOOTLOADER=1
-		;;
-	--a335-flasher)
-		oem_blank_eeprom="enable"
-		a335_flasher="enable"
-		uboot_eeprom="bbb_blank"
-		;;
-	--bp00-flasher)
-		oem_blank_eeprom="enable"
-		bp00_flasher="enable"
-		;;
-	--bbg-flasher)
-		oem_blank_eeprom="enable"
-		bbg_flasher="enable"
-		;;
-	--bbgw-flasher)
-		oem_blank_eeprom="enable"
-		bbgw_flasher="enable"
-		;;
-	--m10a-flasher)
-		oem_blank_eeprom="enable"
-		m10a_flasher="enable"
-		;;
-	--me06-flasher)
-		oem_blank_eeprom="enable"
-		me06_flasher="enable"
-		;;
-	--bbb-usb-flasher|--usb-flasher|--oem-flasher)
-		oem_blank_eeprom="enable"
-		usb_flasher="enable"
-		;;
-	--bbb-flasher|--emmc-flasher)
-		oem_blank_eeprom="enable"
-		emmc_flasher="enable"
-		uboot_eeprom="bbb_blank"
-		;;
-	--bbbl-flasher)
-		oem_blank_eeprom="enable"
-		bbbl_flasher="enable"
-		uboot_eeprom="bbbl_blank"
-		;;
-	--bbbw-flasher)
-		oem_blank_eeprom="enable"
-		bbbw_flasher="enable"
-		uboot_eeprom="bbbw_blank"
-		;;
-	--bbb-old-bootloader-in-emmc)
-		bbb_old_bootloader_in_emmc="enable"
-		;;
-	--x15-force-revb-flash)
-		x15_force_revb_flash="enable"
-		;;
-	--am57xx-x15-flasher)
-		flasher_uboot="beagle_x15_flasher"
-		;;
-	--am57xx-x15-revc-flasher)
-		flasher_uboot="beagle_x15_revc_flasher"
-		;;
-	--am571x-sndrblock-flasher)
-		flasher_uboot="am571x_sndrblock_flasher"
-		;;
-	--oem-flasher-script)
-		checkparm $2
-		oem_flasher_script="$2"
-		;;
-	--oem-flasher-img)
-		checkparm $2
-		oem_flasher_img="$2"
-		;;
-	--oem-flasher-bmap)
-		checkparm $2
-		oem_flasher_bmap="$2"
-		;;
-	--oem-flasher-eeprom)
-		checkparm $2
-		oem_flasher_eeprom="$2"
-		;;
-	--oem-flasher-job)
-		checkparm $2
-		oem_flasher_job="$2"
-		;;
-	--enable-systemd)
-		enable_systemd="enabled"
-		;;
-	--enable-cape-universal)
-		enable_cape_universal="enable"
-		;;
-	--enable-uboot-cape-overlays)
-		uboot_cape_overlays="enable"
-		;;
-	--enable-uboot-pru-rproc-44ti)
-		uboot_pru_rproc_44ti="enable"
-		;;
-	--offline)
-		offline=1
-		;;
-	--kernel)
-		checkparm $2
-		kernel_override="$2"
-		;;
-	--enable-cape)
-		checkparm $2
-		oobe_cape="$2"
-		;;
-	--enable-fat-partition)
-		enable_fat_partition="enable"
-		;;
-	--force-device-tree)
-		checkparm $2
-		forced_dtb="$2"
 		;;
 	esac
 	shift
 done
 
-if [ ! "${media}" ] ; then
-	echo "ERROR: --mmc undefined"
-	usage
-fi
-
-if [ "${error_invalid_dtb}" ] ; then
-	echo "-----------------------------"
-	echo "ERROR: --dtb undefined"
-	echo "-----------------------------"
-	usage
-fi
-
-if ! is_valid_rootfs_type ${ROOTFS_TYPE} ; then
-	echo "ERROR: ${ROOTFS_TYPE} is not a valid root filesystem type"
-	echo "Valid types: ${VALID_ROOTFS_TYPES}"
-	exit
-fi
 
 find_issue
 detect_software
-
-if [ "${spl_name}" ] || [ "${boot_name}" ] ; then
-	if [ "${USE_LOCAL_BOOT}" ] ; then
-		local_bootloader
-	else 
-		dl_bootloader
-	fi
-fi
-
-
-if [ "${idbloader_name}" ] || [ "${trust_name}" ] ; then
-	dl_v2_bootloader
-fi
-
-
-if [ ! "x${build_img_file}" = "xenable" ] ; then
-	unmount_all_drive_partitions
-fi
-
-if [ "${conf_board}" = "respeaker_v2" ] ; then
-	create_v2_partitions
-else
-	create_partitions
-fi  
-
-if [ ! "x${build_img_file}" = "xenable" ] ; then
-	unmount_all_drive_partitions
-fi
+dl_bootloader
+create_partitions
 populate_loaders
-populate_rootfs
-populate_boot
+
+
+
+
+
+# if [ "${idbloader_name}" ] || [ "${trust_name}" ] ; then
+# 	dl_v2_bootloader
+# fi
+
+
+# if [ ! "x${build_img_file}" = "xenable" ] ; then
+# 	unmount_all_drive_partitions
+# fi
+
+# if [ "${conf_board}" = "respeaker_v2" ] ; then
+# 	create_v2_partitions
+# else
+# 	create_partitions
+# fi  
+
+# if [ ! "x${build_img_file}" = "xenable" ] ; then
+# 	unmount_all_drive_partitions
+# fi
+# populate_loaders
+# populate_rootfs
+# populate_boot
 
 exit 0
 #
