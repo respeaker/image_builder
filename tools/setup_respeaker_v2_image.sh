@@ -217,19 +217,19 @@ dl_bootloader () {
 	echo "-----------------------------"	
 
 	mkdir -p ${TEMPDIR}/dl/
-	cp ${DIR}/dl/*.img ${TEMPDIR}/dl/
+	#cp ${DIR}/dl/*.img ${TEMPDIR}/dl/
 
-	#${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${idbloader_name}
-	#echo "-----------------------------------------------------------------------------"	
-	#echo "blank_idbloader Bootloader: ${idbloader_name}"
+	${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${idbloader_name}
+	echo "-----------------------------------------------------------------------------"	
+	echo "blank_idbloader Bootloader: ${idbloader_name}"
 
-	#${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${uboot_name}
-	#echo "-----------------------------------------------------------------------------"
-	#echo "blank_uboot Bootloader: ${uboot_name}"
+	${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${uboot_name}
+	echo "-----------------------------------------------------------------------------"
+	echo "blank_uboot Bootloader: ${uboot_name}"
 
-	#${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${trust_name}
-	#echo "-----------------------------------------------------------------------------"
-	#echo "blank_trust Bootloader: ${trust_name}"
+	${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${trust_name}
+	echo "-----------------------------------------------------------------------------"
+	echo "blank_trust Bootloader: ${trust_name}"
 
 }
 
