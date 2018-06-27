@@ -1273,29 +1273,10 @@ fi
 report_size
 chroot_umount
 
-if [ "x${chroot_COPY_SETUP_SDCARD}" = "xenable" ] ; then
-	echo "Log: copying setup_sdcard.sh related files"
-	sudo cp "${DIR}/tools/setup_sdcard.sh" "${DIR}/deploy/${export_filename}/"
-	sudo mkdir -p "${DIR}/deploy/${export_filename}/hwpack/"
-	sudo cp "${DIR}"/tools/hwpack/*.conf "${DIR}/deploy/${export_filename}/hwpack/"
 
-	if [ -n "${chroot_uenv_txt}" -a -r "${OIB_DIR}/target/boot/${chroot_uenv_txt}" ] ; then
-		sudo cp "${OIB_DIR}/target/boot/${chroot_uenv_txt}" "${DIR}/deploy/${export_filename}/uEnv.txt"
-	fi
-
-	if [ -n "${chroot_flasher_uenv_txt}" -a -r "${OIB_DIR}/target/boot/${chroot_flasher_uenv_txt}" ] ; then
-		sudo cp "${OIB_DIR}/target/boot/${chroot_flasher_uenv_txt}" "${DIR}/deploy/${export_filename}/eMMC-flasher.txt"
-	fi
-
-	if [ -n "${chroot_post_uenv_txt}" -a -r "${OIB_DIR}/target/boot/${chroot_post_uenv_txt}" ] ; then
-		sudo cp "${OIB_DIR}/target/boot/${chroot_post_uenv_txt}" "${DIR}/deploy/${export_filename}/post-uEnv.txt"
-	fi
-
-fi
-
-if [ "x${chroot_COPY_SETUP_SDCARD_V2}" = "xenable" ] ; then
-	echo "Log: copying setup_sdcard_v2.sh related files"
-	sudo cp "${DIR}/tools/setup_sdcard_v2.sh" "${DIR}/deploy/${export_filename}/"
+if [ "x${chroot_COPY_IMAGE_SCRIPT}" != "x" ] ; then
+	echo "Log: copying ${chroot_COPY_IMAGE_SCRIPT} related files"
+	sudo cp "${DIR}/tools/${chroot_COPY_IMAGE_SCRIPT}" "${DIR}/deploy/${export_filename}/"
 	sudo mkdir -p "${DIR}/deploy/${export_filename}/hwpack/"
 	sudo cp "${DIR}"/tools/hwpack/*.conf "${DIR}/deploy/${export_filename}/hwpack/"
 
