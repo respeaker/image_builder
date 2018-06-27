@@ -144,7 +144,7 @@ detect_software () {
 		dl="wget --no-check-certificate"
 		;;
 	*)
-		dl="wget"
+		dl="wget --no-check-certificate"
 		;;
 	esac
 
@@ -219,17 +219,17 @@ dl_bootloader () {
 	mkdir -p ${TEMPDIR}/dl/
 	cp ${DIR}/dl/*.img ${TEMPDIR}/dl/
 
-	# ${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${idbloader_name}
-	# echo "-----------------------------------------------------------------------------"	
-	# echo "blank_idbloader Bootloader: ${idbloader_name}"
+	#${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${idbloader_name}
+	#echo "-----------------------------------------------------------------------------"	
+	#echo "blank_idbloader Bootloader: ${idbloader_name}"
 
-	# ${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${uboot_name}
-	# echo "-----------------------------------------------------------------------------"
-	# echo "blank_uboot Bootloader: ${uboot_name}"
+	#${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${uboot_name}
+	#echo "-----------------------------------------------------------------------------"
+	#echo "blank_uboot Bootloader: ${uboot_name}"
 
-	# ${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${trust_name}
-	# echo "-----------------------------------------------------------------------------"
-	# echo "blank_trust Bootloader: ${trust_name}"
+	#${dl} --directory-prefix="${TEMPDIR}/dl/" ${conf_bl_http}/${trust_name}
+	#echo "-----------------------------------------------------------------------------"
+	#echo "blank_trust Bootloader: ${trust_name}"
 
 }
 
@@ -237,16 +237,16 @@ populate_loaders(){
 	echo "Populating idbloader trust uboot Partition"
 	echo "-----------------------------------------------------------------------------"
 
-	echo "dd if=${TEMPDIR}/dl/${idbloader_name} of=${media} seek=${idbloader_start}"
-	dd if=${TEMPDIR}/dl/${idbloader_name} of=${media} seek=${idbloader_start}
+	echo "dd if=${TEMPDIR}/dl/${idbloader_name} of=${media} seek=${idbloader_start}  conv=notrunc"
+	dd if=${TEMPDIR}/dl/${idbloader_name} of=${media} seek=${idbloader_start}  conv=notrunc
 	echo "-----------------------------------------------------------------------------"
 
-	echo "dd if=${TEMPDIR}/dl/${uboot_name} of=${media} seek=${uboot_start}"
-	dd if=${TEMPDIR}/dl/${uboot_name} of=${media} seek=${uboot_start}
+	echo "dd if=${TEMPDIR}/dl/${uboot_name} of=${media} seek=${uboot_start}  conv=notrunc"
+	dd if=${TEMPDIR}/dl/${uboot_name} of=${media} seek=${uboot_start}  conv=notrunc
 	echo "-----------------------------------------------------------------------------"
 
-	echo "dd if=${TEMPDIR}/dl/${trust_name} of=${media} seek=${trust_start}"
-	dd if=${TEMPDIR}/dl/${trust_name} of=${media} seek=${trust_start}
+	echo "dd if=${TEMPDIR}/dl/${trust_name} of=${media} seek=${trust_start} conv=notrunc"
+	dd if=${TEMPDIR}/dl/${trust_name} of=${media} seek=${trust_start} conv=notrunc
 	echo "-----------------------------------------------------------------------------"
 
 	echo "Finished populating idbloader trust  uboot Partition"
@@ -265,12 +265,12 @@ sfdisk_partition_layout () {
 	else
 		sfdisk_rootfs_startmb=$(($sfdisk_boot_startmb + $sfdisk_boot_size_mb))
 	fi
-	echo "sfdisk_rootfs_startmb: ${sfdisk_rootfs_startmb}M"
+	# echo "sfdisk_rootfs_startmb: ${sfdisk_rootfs_startmb}M"
 
 	test_sfdisk=$(LC_ALL=C sfdisk --help | grep -m 1 -e "--in-order" || true)
 	if [ "x${test_sfdisk}" = "x" ] ; then
 		echo "log: sfdisk: 2.26.x or greater detected"
-		sfdisk_options="--force ${sfdisk_gpt}"
+		sfdisk_options="--force  ${sfdisk_gpt}"
 		sfdisk_boot_startmb="${sfdisk_boot_startmb}M"
 		sfdisk_boot_size_mb="${sfdisk_boot_size_mb}M"
 		sfdisk_var_startmb="${sfdisk_var_startmb}M"
@@ -286,8 +286,9 @@ sfdisk_partition_layout () {
 
 	LC_ALL=C sfdisk ${sfdisk_options} "${media}" <<-__EOF__
 		${sfdisk_boot_startmb},${sfdisk_boot_size_mb},${sfdisk_fstype},*
-		${sfdisk_rootfs_startmb},,,-
+		${sfdisk_rootfs_startmb},3481600,0x83,-
 	__EOF__
+
 	sync
 }
 
@@ -464,7 +465,7 @@ populate_rootfs () {
 	if [ ! -d ${TEMPDIR}/disk ] ; then
 		mkdir -p ${TEMPDIR}/disk
 	fi
-
+	echo "media:  ${media} ........................"
 	partprobe ${media}
 	if ! mount -t ${ROOTFS_TYPE} ${media_prefix}${media_rootfs_partition} ${TEMPDIR}/disk; then
 
@@ -548,7 +549,7 @@ populate_rootfs () {
 	else
 		echo "##enable  Flasher:" >> ${wfile}
 		echo "##make sure, these tools are installed: dosfstools rsync" >> ${wfile}
-		echo "#cmdline=init=/opt/scripts/tools/eMMC/init-eMMC-flasher-respeaker.sh" >> ${wfile}
+		echo "#cmdline=init=/opt/scripts/init-eMMC-flasher-respeaker.sh" >> ${wfile}
 	fi
 
 	board=${conf_board}
@@ -558,9 +559,13 @@ populate_rootfs () {
 	cat ${wfile}
 	echo "-----------------------------"
 
+	echo "backup of ${dtb_board}.conf as ${TEMPDIR}/disk/boot/SOC.sh"
 	wfile="${TEMPDIR}/disk/boot/SOC.sh"
 	cp "${DIR}"/hwpack/${dtb_board}.conf ${wfile}
-	echo "/dev/mmcblk1" > ${TEMPDIR}/disk/resizerootfs
+
+	echo "${TEMPDIR}/disk/resizerootfs -----------------------------"
+	echo "mmcblk0" > ${TEMPDIR}/disk/resizerootfs
+	echo "/dev/mmcblk0p2" > ${TEMPDIR}/disk/resizerootfs2
 
 	#RootStock-NG
 	if [ -f ${TEMPDIR}/disk/etc/rcn-ee.conf ] ; then
@@ -568,30 +573,36 @@ populate_rootfs () {
 
 		mkdir -p ${TEMPDIR}/disk/boot/uboot || true
 
+		echo "auto generate ${TEMPDIR}/disk/etc/fstab"
 		wfile="${TEMPDIR}/disk/etc/fstab"
 		echo "# /etc/fstab: static file system information." > ${wfile}
 		echo "#" >> ${wfile}
 		echo "# Auto generated by RootStock-NG: setup_sdcard.sh" >> ${wfile}
 		echo "#" >> ${wfile}
+		cat  ${wfile}
 
 		if [ "x${distro}" = "xDebian" ] ; then
 			#/etc/inittab is gone in Jessie with systemd...
+			echo "auto generate ${TEMPDIR}/disk/etc/inittab"
 			if [ -f ${TEMPDIR}/disk/etc/inittab ] ; then
 				wfile="${TEMPDIR}/disk/etc/inittab"
 				serial_num=$(echo -n "${SERIAL}"| tail -c -1)
 				echo "" >> ${wfile}
 				echo "T${serial_num}:23:respawn:/sbin/getty -L ${SERIAL} 115200 vt102" >> ${wfile}
 				echo "" >> ${wfile}
+				cat  ${wfile}
 			fi
 		fi
 
 		if [ "x${distro}" = "xUbuntu" ] ; then
+			echo "auto generate ${TEMPDIR}/disk/etc/init/serial.conf"
 			wfile="${TEMPDIR}/disk/etc/init/serial.conf"
 			echo "start on stopped rc RUNLEVEL=[2345]" > ${wfile}
 			echo "stop on runlevel [!2345]" >> ${wfile}
 			echo "" >> ${wfile}
 			echo "respawn" >> ${wfile}
 			echo "exec /sbin/getty 115200 ${SERIAL}" >> ${wfile}
+			cat  ${wfile}
 		fi
 
 		if [ -f ${TEMPDIR}/disk/var/www/index.html ] ; then
@@ -610,25 +621,21 @@ populate_rootfs () {
 		mkdir -p ${TEMPDIR}/disk/opt/backup/uboot/
 		cp -v ${TEMPDIR}/dl/${uboot_name} ${TEMPDIR}/disk/opt/backup/uboot/${uboot_name}
 		cp -v ${TEMPDIR}/dl/${idbloader_name} ${TEMPDIR}/disk/opt/backup/uboot/${idbloader_name}
-		cp -v ${TEMPDIR}/dl/${atf_name} ${TEMPDIR}/disk/opt/backup/uboot/${atf_name}
+		cp -v ${TEMPDIR}/dl/${trust_name} ${TEMPDIR}/disk/opt/backup/uboot/${trust_name}
 	fi
 
-	if [  "x${conf_board}" = "xrespeaker_v2" ] ; then 
-		if [ ! -f ${TEMPDIR}/disk/opt/scripts/init-eMMC-flasher-respeaker.sh ] ; then
-			mkdir -p  ${TEMPDIR}/disk/opt/scripts/
-			git clone https://github.com/Pillar1989/flasher-scripts ${TEMPDIR}/disk/opt/scripts/ --depth 1
-			sudo chown -R 1000:1000 ${TEMPDIR}/disk/opt/scripts/
-		else
-			cd ${TEMPDIR}/disk/opt/scripts/
-			git pull
-			cd -
-			sudo chown -R 1000:1000 ${TEMPDIR}/disk/opt/scripts/
-		fi
-	fi
+	echo "git clone https://github.com/Pillar1989/flasher-scripts "
+	mkdir -p  ${TEMPDIR}/disk/opt/scripts/
+	git clone https://github.com/Pillar1989/flasher-scripts ${TEMPDIR}/disk/opt/scripts/ --depth 1
+	sudo chown -R 1000:1000 ${TEMPDIR}/disk/opt/scripts/
+	
+
 	if [ "x${conf_board}" = "xrespeaker_v2" ]; then
+		echo "auto generate ${TEMPDIR}/disk/lib/udev/rules.d/90-pulseaudio.rules"
 		wfile="${TEMPDIR}/disk/lib/udev/rules.d/90-pulseaudio.rules"
 		sed -i '/0x384e/a#\ Seeed\ Voicecard' ${wfile}
 		sed -i '/Voicecard/aATTR{id}=="seeed8micvoicec",ATTR{number}=="0",ENV{PULSE_PROFILE_SET}="seeed-voicecard.conf"' ${wfile}
+		cat  ${wfile}
 	fi
 
 
@@ -637,7 +644,7 @@ populate_rootfs () {
 
 	if [ ! "x${new_hostname}" = "x" ] ; then
 		echo "Updating Image hostname too: [${new_hostname}]"
-
+		unset wfile
 		wfile="/etc/hosts"
 		echo "127.0.0.1	localhost" > ${TEMPDIR}/disk${wfile}
 		echo "127.0.1.1	${new_hostname}.localdomain	${new_hostname}" >> ${TEMPDIR}/disk${wfile}
@@ -646,9 +653,12 @@ populate_rootfs () {
 		echo "::1     localhost ip6-localhost ip6-loopback" >> ${TEMPDIR}/disk${wfile}
 		echo "ff02::1 ip6-allnodes" >> ${TEMPDIR}/disk${wfile}
 		echo "ff02::2 ip6-allrouters" >> ${TEMPDIR}/disk${wfile}
+		cat ${TEMPDIR}/disk${wfile}
 
+		unset wfile
 		wfile="/etc/hostname"
 		echo "${new_hostname}" > ${TEMPDIR}/disk${wfile}
+		cat ${TEMPDIR}/disk${wfile}
 	fi
 
 	# setuid root ping+ping6 - capabilities does not survive tar
@@ -661,14 +671,9 @@ populate_rootfs () {
 	sync
 	sync
 
-	if [ ! -d ${TEMPDIR}/boot ] ; then
-		mkdir -p ${TEMPDIR}/boot
-	fi
-
-	if [ "${conf_board}" = "respeaker_v2" ] ; then
-		sed -i "s|/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games|/usr/local/bin:/usr/bin:/sbin:/bin:/usr/local/games:/usr/games|g" ${TEMPDIR}/disk/etc/profile  
-		mv ${TEMPDIR}/disk/boot/* ${TEMPDIR}/boot
-	fi
+	echo "modify ${TEMPDIR}/disk/etc/profile "
+	sed -i "s|/usr/local/bin:/usr/bin:/bin:/usr/local/games:/usr/games|/usr/local/bin:/usr/bin:/sbin:/bin:/usr/local/games:/usr/games|g" ${TEMPDIR}/disk/etc/profile  
+	cat ${TEMPDIR}/disk/etc/profile  
 
 
 
@@ -678,8 +683,14 @@ populate_rootfs () {
 		umount ${TEMPDIR}/disk/var || true
 	fi
 
+	echo "umount ${TEMPDIR}/disk"
 	umount ${TEMPDIR}/disk || true
 
+	echo "kpartx -d ${media_loop}"
+	kpartx -d ${media_loop} || true
+
+	echo "losetup -d ${media_loop}"
+	losetup -d ${media_loop} || true
 
 	echo "Finished populating rootfs Partition"
 	echo "-----------------------------"
@@ -756,8 +767,8 @@ done
 find_issue
 detect_software
 dl_bootloader
-create_partitions
 populate_loaders
+create_partitions
 populate_rootfs
 
 
