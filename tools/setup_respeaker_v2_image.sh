@@ -286,7 +286,7 @@ sfdisk_partition_layout () {
 
 	LC_ALL=C sfdisk ${sfdisk_options} "${media}" <<-__EOF__
 		${sfdisk_boot_startmb},${sfdisk_boot_size_mb},${sfdisk_fstype},*
-		${sfdisk_rootfs_startmb},3481600,0x83,-
+		${sfdisk_rootfs_startmb},,0x83,-
 	__EOF__
 
 	sync
