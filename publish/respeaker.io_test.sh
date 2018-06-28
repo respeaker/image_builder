@@ -13,7 +13,7 @@ export apt_proxy=192.168.4.48:3142/
 
 keep_net_alive () {
 	while : ; do
-		sleep 15
+		sleep 30
 		echo "log: [Running: ./publish/respeaker.io_stable.sh]"
 	done
 }
@@ -22,7 +22,7 @@ build_and_upload_image () {
 	if [ -d ./deploy/${image_dir_name} ] ; then
 		cd ./deploy/${image_dir_name}/
 		echo "debug: [./setup_sdcard_v2.sh ${options}]"
-		sudo ./setup_sdcard_v2.sh ${options}
+		sudo ./setup_respeaker_v2_image.sh ${options}
 
 		if [ -f ${image_name}-${size}.img ] ; then
 			sudo chown debian.debian ${image_name}-${size}.img
@@ -66,8 +66,8 @@ config_name="respeaker-debian-stretch-lxqt-v4.4"
 image_dir_name="debian-9.2-lxqt-armhf-${time}"
 image_name="respeaker-debian-9-test-lxqt-sd-${time}"
 size="4gb"
-options="--img-4gb ${image_name} --dtb respeaker_v2 \
---boot_label SD_BOOT  --rootfs ext4 --force-device-tree rk3229-respeaker-v2.dtb"
+options="--img-4gb ${image_name} --dtb rk3229-respeaker-v2.dtb \
+--board respeaker_v2"
 build_and_upload_image
 
 ##Debian 9:
@@ -75,9 +75,8 @@ build_and_upload_image
 image_dir_name="debian-9.2-lxqt-armhf-${time}"
 image_name="respeaker-debian-9-test-lxqt-flasher-${time}"
 size="4gb"
-options="--img-4gb ${image_name} --dtb respeaker_v2 \
---boot_label SD_BOOT  --rootfs ext4 --force-device-tree rk3229-respeaker-v2.dtb \
---force-device-tree rk3229-respeaker-v2.dtb --usb-flasher --oem-flasher-script init-eMMC-flasher-respeaker.sh"
+options="--img-4gb ${image_name} --dtb rk3229-respeaker-v2.dtb \
+--board respeaker_v2 --oem-flasher-script init-eMMC-flasher-respeaker.sh"
 build_and_upload_image
 
 sudo rm -rf ./deploy/ || true
@@ -93,15 +92,14 @@ image_dir_name="debian-9.2-iot-armhf-${time}"
 image_name="respeaker-debian-9-test-iot-sd-${time}"
 size="4gb"
 options="--img-4gb ${image_name} --dtb respeaker_v2 \
---boot_label SD_BOOT  --rootfs ext4 --force-device-tree rk3229-respeaker-v2.dtb"
+--board respeaker_v2"
 build_and_upload_image
 
 image_dir_name="debian-9.2-iot-armhf-${time}"
 image_name="respeaker-debian-9-test-iot-flasher-${time}"
 size="4gb"
 options="--img-4gb ${image_name} --dtb respeaker_v2 \
---boot_label SD_BOOT  --rootfs ext4 --force-device-tree rk3229-respeaker-v2.dtb \
---force-device-tree rk3229-respeaker-v2.dtb --usb-flasher --oem-flasher-script init-eMMC-flasher-respeaker.sh"
+--board respeaker_v2 --oem-flasher-script init-eMMC-flasher-respeaker.sh"
 build_and_upload_image
 
 sudo rm -rf ./deploy/ || true
