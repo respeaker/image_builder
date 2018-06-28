@@ -7,7 +7,7 @@ ssh_user="pillar@192.168.4.48"
 rev=$(git rev-parse HEAD)
 branch=$(git describe --contains --all HEAD)
 server_dir="/home/public/share"
-cloud_dir="miao:ReSpeaker"
+cloud_dir="disk1:ReSpeaker"
 
 export apt_proxy=192.168.4.48:3142/
 
