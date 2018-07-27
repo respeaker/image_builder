@@ -131,36 +131,36 @@ setup_dhcp_server () {
 	
 }
 setup_desktop () {
-	if [ -d /etc/X11/ ] ; then
-		wfile="/etc/X11/xorg.conf"
-		echo "Patching: ${wfile}"
-		echo "Section \"Monitor\"" > ${wfile}
-		echo "        Identifier      \"Builtin Default Monitor\"" >> ${wfile}
-		echo "EndSection" >> ${wfile}
-		echo "" >> ${wfile}
-		echo "Section \"Device\"" >> ${wfile}
-		echo "        Identifier      \"Builtin Default fbdev Device 0\"" >> ${wfile}
+# 	if [ -d /etc/X11/ ] ; then
+# 		wfile="/etc/X11/xorg.conf"
+# 		echo "Patching: ${wfile}"
+# 		echo "Section \"Monitor\"" > ${wfile}
+# 		echo "        Identifier      \"Builtin Default Monitor\"" >> ${wfile}
+# 		echo "EndSection" >> ${wfile}
+# 		echo "" >> ${wfile}
+# 		echo "Section \"Device\"" >> ${wfile}
+# 		echo "        Identifier      \"Builtin Default fbdev Device 0\"" >> ${wfile}
 
-#		echo "        Driver          \"modesetting\"" >> ${wfile}
-#		echo "        Option          \"AccelMethod\"   \"none\"" >> ${wfile}
-		echo "        Driver          \"fbdev\"" >> ${wfile}
+# #		echo "        Driver          \"modesetting\"" >> ${wfile}
+# #		echo "        Option          \"AccelMethod\"   \"none\"" >> ${wfile}
+# 		echo "        Driver          \"fbdev\"" >> ${wfile}
 
-		echo "#HWcursor_false        Option          \"HWcursor\"          \"false\"" >> ${wfile}
+# 		echo "#HWcursor_false        Option          \"HWcursor\"          \"false\"" >> ${wfile}
 
-		echo "EndSection" >> ${wfile}
-		echo "" >> ${wfile}
-		echo "Section \"Screen\"" >> ${wfile}
-		echo "        Identifier      \"Builtin Default fbdev Screen 0\"" >> ${wfile}
-		echo "        Device          \"Builtin Default fbdev Device 0\"" >> ${wfile}
-		echo "        Monitor         \"Builtin Default Monitor\"" >> ${wfile}
-		echo "#DefaultDepth        DefaultDepth    16" >> ${wfile}
-		echo "EndSection" >> ${wfile}
-		echo "" >> ${wfile}
-		echo "Section \"ServerLayout\"" >> ${wfile}
-		echo "        Identifier      \"Builtin Default Layout\"" >> ${wfile}
-		echo "        Screen          \"Builtin Default fbdev Screen 0\"" >> ${wfile}
-		echo "EndSection" >> ${wfile}
-	fi
+# 		echo "EndSection" >> ${wfile}
+# 		echo "" >> ${wfile}
+# 		echo "Section \"Screen\"" >> ${wfile}
+# 		echo "        Identifier      \"Builtin Default fbdev Screen 0\"" >> ${wfile}
+# 		echo "        Device          \"Builtin Default fbdev Device 0\"" >> ${wfile}
+# 		echo "        Monitor         \"Builtin Default Monitor\"" >> ${wfile}
+# 		echo "#DefaultDepth        DefaultDepth    16" >> ${wfile}
+# 		echo "EndSection" >> ${wfile}
+# 		echo "" >> ${wfile}
+# 		echo "Section \"ServerLayout\"" >> ${wfile}
+# 		echo "        Identifier      \"Builtin Default Layout\"" >> ${wfile}
+# 		echo "        Screen          \"Builtin Default fbdev Screen 0\"" >> ${wfile}
+# 		echo "EndSection" >> ${wfile}
+# 	fi
 
 	wfile="/etc/lightdm/lightdm.conf"
 	if [ -f ${wfile} ] ; then
@@ -319,7 +319,7 @@ is_this_qemu
 
 setup_system
 setup_network
-#setup_desktop
+setup_desktop
 setup_bluetooth_audio
 setup_x11vnc
 setup_pulseaudio
