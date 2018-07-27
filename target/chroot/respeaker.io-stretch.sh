@@ -319,7 +319,7 @@ is_this_qemu
 
 setup_system
 setup_network
-setup_desktop
+#setup_desktop
 setup_bluetooth_audio
 setup_x11vnc
 setup_pulseaudio
