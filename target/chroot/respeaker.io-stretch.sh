@@ -161,6 +161,26 @@ setup_desktop () {
 # 		echo "        Screen          \"Builtin Default fbdev Screen 0\"" >> ${wfile}
 # 		echo "EndSection" >> ${wfile}
 # 	fi
+	if [ -d /etc/X11/ ] ; then
+		mkdir /etc/X11/xorg.conf.d
+		wfile="/etc/X11/xorg.conf.d/20-armsoc.conf"
+		echo "		Section \"Device\"" > ${wfile}
+		echo "				Identifier      \"Mali FBDEV\" " >> ${wfile}
+		echo "				Driver          \"armsoc\" " >> ${wfile}
+		echo "				Option          \"fbdev\"                 \"/dev/fb0\" " >> ${wfile}
+		echo "				Option          \"Fimg2DExa\"             \"false\" " >> ${wfile}
+		echo "				Option          \"DRI2\"                  \"true\" " >> ${wfile}
+		echo "				Option          \"DRI2_PAGE_FLIP\"        \"false\" " >> ${wfile}
+		echo "				Option          \"DRI2_WAIT_VSYNC\"       \"true\"" >> ${wfile}
+		echo "			Option		\"CursorPlaneType\"	\"2\" " >> ${wfile}
+		echo "		EndSection " >> ${wfile}
+		echo " " >> ${wfile}
+		echo "		Section \"Screen\" " >> ${wfile}
+		echo "				Identifier      \"DefaultScreen\" " >> ${wfile}
+		echo "				Device          \"Mali FBDEV\" " >> ${wfile}
+		echo "				DefaultDepth    24 " >> ${wfile}
+		echo "		EndSection " >> ${wfile}
+	fi
 
 	wfile="/etc/lightdm/lightdm.conf"
 	if [ -f ${wfile} ] ; then
@@ -175,6 +195,7 @@ setup_desktop () {
 
 	#Disable dpms mode and screen blanking
 	#Better fix for missing cursor
+	unset  wfile
 	wfile="/home/${rfs_username}/.xsessionrc"
 	echo "#!/bin/sh" > ${wfile}
 	echo "" >> ${wfile}
@@ -205,6 +226,7 @@ setup_desktop () {
 
 }
 setup_bluetooth_audio(){
+	unset wfile
     wfile="/etc/dbus-1/system.d/ofono.conf"
     #delete busconfig first
     sed -i 's:</busconfig>::g' ${wfile}
