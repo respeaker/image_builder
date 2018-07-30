@@ -34,10 +34,10 @@ build_and_upload_image () {
 			sha256sum ${image_name}-${size}.img.xz > ${image_name}-${size}.img.xz.sha256sum
 
 			#upload:
-			 ssh ${ssh_user} mkdir -p ${server_dir}/respeaker/${time}
-			 rsync -e ssh -avh ./${image_name}-${size}.bmap ${ssh_user}:${server_dir}/respeaker/${time}
-			 rsync -e ssh -avh ./${image_name}-${size}.img.xz ${ssh_user}:${server_dir}/respeaker/${time}
-			 rsync -e ssh -avh ./${image_name}-${size}.img.xz.sha256sum ${ssh_user}:${server_dir}/respeaker/${time}
+			 ssh ${ssh_user} mkdir -p ${server_dir}/respeaker/release/respeakerv2/${time}
+			 rsync -e ssh -avh ./${image_name}-${size}.bmap ${ssh_user}:${server_dir}/respeaker/release/respeakerv2/${time}
+			 rsync -e ssh -avh ./${image_name}-${size}.img.xz ${ssh_user}:${server_dir}/respeaker/release/respeakerv2/${time}
+			 rsync -e ssh -avh ./${image_name}-${size}.img.xz.sha256sum ${ssh_user}:${server_dir}/respeaker/release/respeakerv2/${time}
 			 rclone copy  ./${image_name}-${size}.img.xz  ${cloud_dir}/${time}  --stats-unit bytes  --stats 10s
 			 rclone copy  ./${image_name}-${size}.img.xz.sha256sum  ${cloud_dir}/${time} --stats-unit bytes  --stats 10s
 
