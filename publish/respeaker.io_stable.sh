@@ -65,7 +65,7 @@ config_name="respeaker-debian-stretch-lxqt-v4.4"
 ##Debian 9:
 #image_name="${deb_distribution}-${release}-${image_type}-${deb_arch}-${time}"
 image_dir_name="debian-9.2-lxqt-armhf-${time}"
-image_name="respeaker-debian-9-test-lxqt-sd-${time}"
+image_name="respeaker-debian-9-lxqt-sd-${time}"
 size="4gb"
 options="--img-4gb ${image_name} --dtb rk3229-respeaker-v2.dtb \
 --board respeaker_v2"
@@ -74,7 +74,7 @@ build_and_upload_image
 ##Debian 9:
 #image_name="${deb_distribution}-${release}-${image_type}-${deb_arch}-${time}"
 image_dir_name="debian-9.2-lxqt-armhf-${time}"
-image_name="respeaker-debian-9-test-lxqt-flasher-${time}"
+image_name="respeaker-debian-9-lxqt-flasher-${time}"
 size="4gb"
 options="--img-4gb ${image_name} --dtb rk3229-respeaker-v2.dtb \
 --board respeaker_v2 --oem-flasher-script init-eMMC-flasher-respeaker.sh"
@@ -90,14 +90,14 @@ config_name="respeaker-debian-stretch-iot-v4.4"
 
 
 image_dir_name="debian-9.2-iot-armhf-${time}"
-image_name="respeaker-debian-9-test-iot-sd-${time}"
+image_name="respeaker-debian-9-iot-sd-${time}"
 size="4gb"
 options="--img-4gb ${image_name} --dtb respeaker_v2 \
 --board respeaker_v2"
 build_and_upload_image
 
 image_dir_name="debian-9.2-iot-armhf-${time}"
-image_name="respeaker-debian-9-test-iot-flasher-${time}"
+image_name="respeaker-debian-9-iot-flasher-${time}"
 size="4gb"
 options="--img-4gb ${image_name} --dtb respeaker_v2 \
 --board respeaker_v2 --oem-flasher-script init-eMMC-flasher-respeaker.sh"
