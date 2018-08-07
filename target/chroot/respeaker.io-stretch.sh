@@ -281,6 +281,7 @@ setup_pulseaudio () {
 	echo "add default pulseaudio setting"
 	unset wfile
 	wfile="/etc/pulse/daemon.conf"
+	sed -i -e 's:; default-sample-format = s16le:default-sample-format = s32le:g' ${wfile}
 	sed -i -e 's:; resample-method = speex-float-1:resample-method = ffmpeg:g' ${wfile}
 	sed -i -e 's:; default-sample-rate = 44100:default-sample-rate = 48000:g' ${wfile}
 	sed -i -e 's:; alternate-sample-rate = 48000:default-sample-rate = 48000:g' ${wfile}
