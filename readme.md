@@ -1,9 +1,16 @@
 Debian  Rootfs
 ------------
 
-ReSpeaker V2 board
+**ReSpeaker Core V2**
 
-    ./publish/respeaker.io_stable.sh
+Dependences(Debian Host):
+```
+sudo apt-get install dosfstools git-core kpartx wget parted bmap-tools
+```
+Pack the Image:
+```
+./publish/respeaker.io_stable.sh
+```
 
 
 -------------
